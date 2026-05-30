@@ -1,452 +1,345 @@
-# NMTSA Learning Management System (LMS)
+# NMTSA Learn
 
-A Django-based LMS for neurologic music therapy education built for NMTSA, serving two audiences:
-- Healthcare professionals pursuing continuing education (CE) and NMT certification
-- Clients/families needing free resources and premium courses to support therapy journeys
+**Accessibility-first LMS for Neurologic Music Therapy education — built in 36 hours, won 2nd place at Opportunity Hack 2025.**
 
-This LMS consolidates scattered resources (previously on Google Drive) into a secure, trackable platform with dual authentication, autism-friendly UI, course management, video streaming, payments, certificates, discussions, and an AI assistant.
+[![Python](https://img.shields.io/badge/Python-3.13+-blue?logo=python)](https://python.org)
+[![Django](https://img.shields.io/badge/Django-5.2-green?logo=django)](https://djangoproject.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38bdf8?logo=tailwindcss)](https://tailwindcss.com)
+[![Auth0](https://img.shields.io/badge/Auth0-OAuth2-orange)](https://auth0.com)
+[![Hackathon](https://img.shields.io/badge/Opportunity_Hack_2025-2nd_Place_%2B_Best_Polish-gold)](https://devpost.com/software/nmtsa-learn)
 
+---
 
-## Features at a Glance
+## Overview
 
-- Dual authentication and RBAC
-	- OAuth (Auth0) for Students/Teachers
-	- Django Admin auth for Admins (admins do NOT use OAuth)
-- Teacher onboarding + verification workflow (admin approval required)
-- Course management (courses → modules → lessons)
-	- Lesson types: VideoLesson (file + transcript) and BlogLesson (content + images)
-	- Publish/review process with auto-unpublish on edits
-- Student enrollment and progress tracking
-	- Completed lessons, video resume (last position), completion thresholds
-- Payments (PayPal)
-	- Paid/free courses, capture + idempotent processing
-- Certificates for CE credits (PDF generation with metadata)
-- Discussions per course/module
-- AI chat assistant with memory + semantic course search (Supermemory)
-- Accessibility and autism-friendly UI
-	- 4 themes (Light/Dark/High Contrast/Minimal), font size controls, zero animations/auto-play
-- Localization (EN/ES), SEO + sitemaps
-- Analytics (engagement, completions), export CSV
+NMTSA Learn consolidates scattered Google Drive resources into a secure, trackable online platform for [Neurologic Music Therapy Services of Arizona (NMTSA)](https://devpost.com/software/nmtsa-learn) — a real nonprofit. It serves two audiences:
 
+- **Healthcare professionals** pursuing NMT certification and continuing education (CE) credits
+- **Clients and families** accessing free and premium therapy support courses
 
-## Repository Structure (high level)
+The platform ships admin-gated teacher verification, a multi-tier AI semantic search engine, autism-friendly accessibility modes, PayPal checkout, PDF certificate generation, and a threaded discussion forum — all in a single Django deployment.
 
-- `nmtsa_lms/` — Django project root
-	- `manage.py` — Django CLI entry
-	- `nmtsa_lms/` — core settings, URLs, OAuth views, Tailwind pipeline
-	- `authentication/` — custom user, profiles, OAuth session middleware, onboarding
-	- `teacher_dash/` — course and lesson modeling, review workflow
-	- `student_dash/` — enrollment, progress
-	- `admin_dash/` — admin verification + course review
-	- `lms/` — shared models, AI chat/search APIs, sitemaps, course memory
-	- `static/` and `templates/` — Tailwind CSS, base templates and components
-- `docs/` — project documentation, integration guides, SRS
+> **Demo video:** [YouTube](https://www.youtube.com/watch?v=1EP4EG3jDYA) · **DevPost:** [nmtsa-learn](https://devpost.com/software/nmtsa-learn)
 
-See also: `docs/SRS_NMTSA_LMS_FULL.md` for the complete SRS.
+---
 
+## Highlights
+
+- **Dual-track authentication** — Auth0 OAuth2/OIDC for students and teachers; separate Django session auth for admins, enforced by role-scoped decorators so admin tokens never touch OAuth flows
+- **Multi-tier AI search** — Gemini 2.5 Flash via Supermemory Memory Router indexes courses, modules, and lessons independently, then aggregates weighted results (course ×1.0, module ×0.8, lesson ×0.6) with a Django Q text fallback
+- **Autism-friendly accessibility** — 4 themes (Light / Dark / High Contrast / Minimal), font-size controls, zero auto-play, Reduce Motion support, and screen-reader modes targeting WCAG 2.1 AA+/AAA
+- **Editorial governance** — teachers upload credentials for admin verification before publishing; any edit to a live course auto-unpublishes it and re-queues it for review
+- **Production infrastructure** — deployed to AWS EC2 behind an ALB with isolated security groups (only ALB 443/80 reaches the app tier), S3 + CloudFront for media, Auth0 scoped per environment
+- **Full SEO surface** — XML sitemaps, Open Graph, Schema.org structured data, and canonical URLs for every published course and teacher profile
+
+---
+
+## Demo / Preview
+
+> **Live demo:** [YouTube walkthrough](https://www.youtube.com/watch?v=1EP4EG3jDYA)
+
+*Screenshots of the student dashboard, AI chat, and accessibility modes would go here. See "Missing Assets" at the bottom of this README.*
+
+---
+
+## Use Cases
+
+| Use Case | User | Outcome |
+|----------|------|---------|
+| Complete NMT certification modules | Healthcare professional | Tracked progress, CE certificate PDF on completion |
+| Find a relevant course via natural language | Student / guest | AI chat surfaces matching courses with direct links |
+| Publish and manage course content | Verified teacher | Create video, blog, and PDF lessons; submit for admin review |
+| Approve teachers and review courses | Admin | Dedicated dashboard; reject/approve with feedback |
+| Purchase a premium course | Student | PayPal checkout unlocks enrollment; idempotent capture |
+| Use the platform with sensory sensitivities | Student with autism | Reduce Motion mode, no auto-play, high-contrast themes |
+
+---
+
+## Features
+
+### Courses and Content
+- Hierarchical structure: **Course → Module → Lesson**
+- Lesson types: **Video** (file upload + transcript), **Blog** (rich text + images), **PDF** (embedded viewer)
+- Video resume: stores last playback position per enrollment; completion threshold tracking
+- Tagging system via `django-taggit`; rich-text editing via CKEditor 5
+
+### Authentication and Access Control
+- OAuth2/OIDC login for students and teachers via Auth0
+- Admin-only session login at `/auth/admin-login/` — never shares OAuth tokens
+- Role selection on first login → guided onboarding flow → role dashboard
+- RBAC decorators: `student_required`, `teacher_required`, `admin_required`, `teacher_verified_required`, `onboarding_complete_required`
+
+### Teacher Workflow
+- Resume and certification upload → `pending` verification state
+- Admin approves/rejects with rich-text feedback
+- Only approved teachers can create or edit courses
+- Auto-unpublish on edit triggers fresh admin review cycle
+
+### AI Chat and Semantic Search
+- Gemini 2.5 Flash via Supermemory Memory Router: memory context injected automatically per user
+- Multi-tier search across courses, modules, and lessons with weighted score aggregation
+- Domain-restricted system prompt: assistant only discusses NMTSA platform content
+- URL placeholder format (`{COURSE:title}`) resolved to real slugs in responses
+- Management commands to seed and sync course content into Supermemory
+
+### Payments and Certificates
+- PayPal Checkout (sandbox + live) with idempotent order capture
+- PDF certificates generated on course completion with CE credit metadata
+
+### Discussions
+- Threaded posts (self-referential FK), pinnable by teacher/admin
+- Rate limiting and moderation controls (edit/delete within 24h for students; unrestricted for teacher/admin)
+
+### Accessibility
+- 4 UI themes switchable per user preference
+- Font-size controls, Reduce Motion mode, screen-reader-friendly markup
+- Zero animations, zero auto-play video
+
+### SEO and Localization
+- XML sitemaps (static pages, published courses, teacher profiles)
+- Open Graph and Schema.org metadata per course
+- EN/ES localization support
+
+---
 
 ## Tech Stack
 
-- Backend: Python 3.10+, Django 4.x+
-- Frontend: Django templates + Tailwind CSS
-- Auth: Auth0 (OAuth/OIDC) for users, Django admin for admins
-- Payments: PayPal Checkout/Payments
-- AI: Supermemory (chat and semantic search)
-- Database: SQLite (dev), PostgreSQL (prod recommended)
-- Video: HTML5 video, optional MoviePy utilities
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Backend | Python 3.13, Django 5.2 | Web framework, ORM, admin |
+| Frontend | Django Templates, Tailwind CSS | Server-rendered UI, utility-first styling |
+| Auth | Auth0 (OAuth2/OIDC), Authlib | Student/teacher login; admin uses Django session |
+| AI / Search | Supermemory SDK, Google Gemini 2.5 Flash | Memory-augmented chat, semantic course search |
+| Payments | PayPal Checkout Server SDK | Course purchases, idempotent order capture |
+| Rich Text | CKEditor 5 | Course descriptions, lesson content, transcripts |
+| PDF | PyPDF2 | Certificate generation and PDF lesson extraction |
+| Video | MoviePy, HTML5 | Video processing utilities, client-side playback |
+| Tagging | django-taggit | Course and lesson tagging |
+| API | Django REST Framework, SimpleJWT | Chat and search REST endpoints |
+| Database | SQLite (dev), PostgreSQL (prod) | Relational data store |
+| Infra (prod) | AWS EC2, ALB, VPC, S3, CloudFront | App hosting, media CDN, isolated security groups |
 
+---
 
-## Prerequisites
+## Architecture
 
-- Python 3.10+
-- Node.js 18+ and npm (for Tailwind)
-- An Auth0 tenant (Domain, Client ID, Client Secret)
-- PayPal credentials (Sandbox first: Client ID/Secret)
-- Supermemory API key and base URL
+```mermaid
+flowchart TD
+    subgraph Client
+        Browser
+    end
 
-On Windows using bash.exe (Git Bash/WSL-friendly commands below).
+    subgraph AWS
+        ALB["ALB (443/80)"]
+        EC2["EC2 App Tier\nDjango + Gunicorn"]
+        S3["S3 + CloudFront\nMedia & Static"]
+    end
 
+    subgraph Auth
+        Auth0["Auth0\nOAuth2/OIDC"]
+    end
 
-## Quick Start (Development)
+    subgraph AI
+        SM["Supermemory\nMemory Store"]
+        GEM["Google Gemini\n2.5 Flash"]
+    end
 
-1) Clone and create a virtual environment
+    subgraph Services
+        PP["PayPal\nCheckout API"]
+        DB[(PostgreSQL)]
+    end
+
+    Browser -->|HTTPS| ALB
+    ALB -->|Private subnet| EC2
+    EC2 -->|Static/Media| S3
+    Browser -->|Login flow| Auth0
+    Auth0 -->|Callback| EC2
+    EC2 --> DB
+    EC2 -->|Memory Router| SM
+    SM -->|LLM call| GEM
+    EC2 -->|Order capture| PP
+```
+
+### App Modules
+
+```
+nmtsa_lms/
+├── nmtsa_lms/        # Settings, root URLs, OAuth callback views
+├── authentication/   # Custom User model, profiles, onboarding, RBAC decorators
+├── teacher_dash/     # Course/Module/Lesson models, review workflow, discussion
+├── student_dash/     # Enrollment, progress tracking, video resume
+├── admin_dash/       # Teacher verification, course review dashboard
+└── lms/              # AI chat, semantic search, sitemaps, course memory sync
+```
+
+---
+
+## How It Works
+
+1. **Login** — Student or teacher signs in via Auth0 OAuth2. On first visit, they select a role and complete a short onboarding profile. Admin users log in separately at `/auth/admin-login/`.
+
+2. **Teacher verification** — A teacher uploads their resume and certifications. An admin reviews the submission and approves or rejects with feedback. Only approved teachers can create courses.
+
+3. **Course authoring** — An approved teacher creates a course, adds modules, and attaches video, blog, or PDF lessons. When ready, they submit for admin review. Any subsequent edit auto-resets the course to under-review.
+
+4. **AI indexing** — Running `python manage.py sync_courses_to_memory` pushes every published course, module, and lesson into Supermemory with a slug-based custom ID (enabling idempotent upserts).
+
+5. **Student experience** — After enrolling (free or paid via PayPal), students progress through lessons with video resume, lesson-level completion tracking, and a threaded discussion per course. Completing a course generates a CE certificate PDF.
+
+6. **AI chat and search** — Any user (including guests) can use the chat assistant. Queries route through Supermemory's Memory Router, which injects relevant course memories before calling Gemini 2.5 Flash. A multi-tier search API (`POST /lms/api/courses/search/`) aggregates course, module, and lesson matches with weighted scoring.
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Python 3.13+
+- Node.js 18+ and npm
+- Auth0 tenant (Domain, Client ID, Client Secret)
+- PayPal sandbox credentials
+- Supermemory API key
+- Google Gemini API key (free tier)
+
+### Install
 
 ```bash
-git clone https://github.com/2025-Arizona-Opportunity-Hack/Coderz-NMTSAEducationPlatfo.git nmtsaeducationlms
-cd nmtsaeducationlms
+git clone https://github.com/2025-Arizona-Opportunity-Hack/Coderz-NMTSAEducationPlatfo.git nmtsa-lms
+cd nmtsa-lms
 python -m venv .venv
-source .venv/Scripts/activate
-```
-
-2) Install Python dependencies
-
-```bash
+source .venv/Scripts/activate   # Windows; use source .venv/bin/activate on Mac/Linux
 pip install -r requirements.txt
+cd nmtsa_lms && npm install && cd ..
 ```
 
-3) Install Tailwind dependencies
+### Environment
 
-```bash
-cd nmtsa_lms
-npm install
-cd ..
-```
+Copy `.env.example` to `.env` at the repo root and fill in:
 
-4) Create a `.env` file at the repo root
-
-```bash
-cat > .env << 'EOF'
-# Django
+```env
 SECRET_KEY=change-me
 DEBUG=true
 ALLOWED_HOSTS=localhost,127.0.0.1
 
-# Auth0 (OAuth for Students/Teachers only)
 AUTH0_DOMAIN=your-tenant.us.auth0.com
-AUTH0_CLIENT_ID=your-auth0-client-id
-AUTH0_CLIENT_SECRET=your-auth0-client-secret
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_CLIENT_SECRET=your-client-secret
+AUTH0_CALLBACK_URL=http://localhost:8000/callback
 
-# PayPal
-PAYPAL_CLIENT_ID=your-paypal-sandbox-client-id
-PAYPAL_CLIENT_SECRET=your-paypal-sandbox-client-secret
+PAYPAL_CLIENT_ID=your-sandbox-client-id
+PAYPAL_CLIENT_SECRET=your-sandbox-client-secret
 PAYPAL_MODE=sandbox
 
-# Supermemory
 SUPERMEMORY_API_KEY=your-supermemory-key
-SUPERMEMORY_BASE_URL=https://api.supermemory.ai
-SUPERMEMORY_PROJECT_ID=nmtsa-lms
-
-# Google Gemini (free tier)
-GEMINI_API_KEY=your-gemini-api-key
-
-# Database (dev)
-# SQLite is default; for Postgres (prod), prefer: DATABASE_URL=postgres://user:pass@host:5432/dbname
-# DATABASE_URL=postgres://...
-EOF
+GEMINI_API_KEY=your-gemini-key
 ```
 
-5) Apply migrations and create an admin user
+### Run
 
 ```bash
+# Terminal 1 — Django
 cd nmtsa_lms
 python manage.py migrate
-python manage.py createsuperuser
-# After login to Django admin, set role='admin' and onboarding_complete=True for your admin user
-```
-
-6) (Optional) Seed demo data
-
-```bash
-python manage.py seed_demo_courses
-```
-
-7) Start the dev servers in two terminals
-
-- Terminal A (Django):
-```bash
-cd nmtsa_lms
+python manage.py createsuperuser   # set role='admin' and onboarding_complete=True in Django admin after login
+python manage.py seed_demo_courses  # optional demo data
 python manage.py runserver
-```
 
-- Terminal B (Tailwind CSS watcher):
-```bash
+# Terminal 2 — Tailwind watcher
 cd nmtsa_lms
 npm run dev
 ```
 
-Visit http://127.0.0.1:8000
+Visit `http://127.0.0.1:8000`
 
+**Auth0 setup:** In your Auth0 app settings, set Callback URL to `http://127.0.0.1:8000/callback` and Logout URL to `http://127.0.0.1:8000`.
 
-## Auth: Login Flows
-
-- Students/Teachers: Use OAuth via Auth0.
-	- Flow: `/login` → Auth0 → `/callback` → Select Role (if first time) → Onboarding → Dashboard
-	- Session key: `request.session['user']` with `userinfo`, `role`, `onboarding_complete`
-- Admins: Use Django credentials at `/auth/admin-login/`.
-	- Admins do NOT use OAuth; enforced by role selection and decorators.
-
-RBAC decorators (enforced at view level):
-- `login_required`, `student_required`, `teacher_required`, `admin_required`, `teacher_verified_required`, `onboarding_complete_required`
-
-
-## Core Workflows
-
-- Teacher onboarding + verification
-	- Teacher uploads resume/certifications → status `pending` → Admin approves/rejects
-	- Only approved teachers can create/edit courses
-- Course review and publish
-	- Create course → add modules/lessons → submit for review
-	- Admin approves → Teacher can publish
-	- Editing a published course auto-unpublishes and re-submits for review
-- Student progress and CE certificate
-	- Enrollment tracks progress; video resume stored; completion triggers certificate generation (PDF)
-- Payments (PayPal)
-	- Paid courses require checkout; sandbox and live supported; webhook/idempotent processing recommended
-- Discussions
-	- Course/module discussions with moderation controls (teachers/admins)
-- AI chat + semantic search
-	- Available to all users (including guests); integrates with Supermemory; course data can be synced to memory
-
-
-## Tailwind CSS
-
-- Dev watch: `npm run dev` (in `nmtsa_lms`)
-- Production build: `npm run build`
-
-Tailwind compiles `static/css/input.css` → `static/css/output.css`. Ensure templates reference the generated output.
-
-
-## Running Tests
+### Tests
 
 ```bash
 cd nmtsa_lms
 python manage.py test
 ```
 
-Targeted apps:
-- `authentication/tests.py`
-- `teacher_dash/tests.py`
-- `lms/tests.py`
-- `student_dash/tests.py`
+Test suites: `authentication/tests.py`, `teacher_dash/tests.py`, `lms/tests.py`, `student_dash/tests.py`
 
+### Production Build
 
-## Payments (PayPal Sandbox Quick Test)
-
-1) Set `PAYPAL_ENV=sandbox` and provide sandbox credentials in `.env`.
-2) Start the app, set a course to paid with a price.
-3) Use a PayPal sandbox buyer to complete a test purchase.
-4) Verify enrollment unlock and transaction state stored.
-
-See `docs/PAYPAL_QUICK_TEST.md` and `docs/PAYPAL_INTEGRATION_SUMMARY.md` for details.
-
-
-## Supermemory (AI Chat + Search)
-
-1) Provide `SUPERMEMORY_API_KEY`, `SUPERMEMORY_BASE_URL`, and `SUPERMEMORY_PROJECT_ID` in `.env`.
-2) Chat endpoints (REST):
-	 - `GET /lms/api/chat/rooms/`
-	 - `GET /lms/api/chat/rooms/<id>/messages/`
-	 - `POST /lms/api/chat/rooms/<id>/send/`
-	 - `POST /lms/api/chat/rooms/<id>/typing/`
-	 - `GET /lms/api/chat/rooms/<id>/typing/status/`
-3) Semantic course search: `POST /lms/api/courses/search/`
-4) Course memory syncing: see `lms/course_memory.py` and `lms/supermemory_client.py`.
-
-Refer to `docs/SUPERMEMORY_SETUP_GUIDE.md` and `docs/CHAT_IMPLEMENTATION.md` for end-to-end steps.
-
-
-## Provider Setup: Auth0, Supermemory, and Gemini
-
-Below is a quick, practical guide to get credentials and wire them up with this repo. For deeper context, see the docs referenced at the end of each section.
-
-### Auth0 (OAuth for Students/Teachers)
-
-What you’ll create in Auth0:
-- A Regular Web Application (OIDC)
-
-Allowed URLs (must match your Django routes):
-- Allowed Callback URLs: http://127.0.0.1:8000/callback
-- Allowed Logout URLs: http://127.0.0.1:8000/
-- Allowed Web Origins: http://127.0.0.1:8000
-
-Steps:
-1) Sign in at https://manage.auth0.com and create a Regular Web Application.
-2) In Settings, set the Allowed URLs exactly as above for local dev.
-3) Copy Domain, Client ID, and Client Secret.
-4) Add these to your `.env` at the repo root:
-	- AUTH0_DOMAIN=your-tenant.us.auth0.com
-	- AUTH0_CLIENT_ID=...
-	- AUTH0_CLIENT_SECRET=...
-5) Start the server and test the flow:
-	- Visit http://127.0.0.1:8000/login
-	- Complete Auth0 login
-	- You’ll be routed to role selection → onboarding → dashboard
-
-Notes:
-- Admins use Django username/password at /auth/admin-login/ (not Auth0).
-- If you see a redirect_mismatch error, re-check your Callback/Logout URLs.
-
-See also: `docs/AUTH_SYSTEM_SUMMARY.md`, `docs/AUTHENTICATION_COMPLETE.md`.
-
-### Supermemory (AI memory + semantic search)
-
-What you’ll get:
-- An API key (optionally a project ID; base URL defaults to https://api.supermemory.ai)
-
-Steps:
-1) Create an account at https://supermemory.ai and generate an API key.
-2) Add to your `.env`:
-	- SUPERMEMORY_API_KEY=...
-	- SUPERMEMORY_BASE_URL=https://api.supermemory.ai
-	- SUPERMEMORY_PROJECT_ID=nmtsa-lms
-3) Install required packages (already listed in requirements.txt):
-	- supermemory
-	- openai (used for Google Gemini via Memory Router)
-4) Seed and sync memories (optional but recommended):
-	- python manage.py seed_website_memory
-	- python manage.py sync_courses_to_memory
-
-Test:
-- Chat endpoints under /lms/api/chat/... will respond using memory.
-- Semantic search via POST /lms/api/courses/search/.
-
-See also: `docs/SUPERMEMORY_SETUP_GUIDE.md`, `docs/SUPERMEMORY_INTEGRATION_SUMMARY.md`, `docs/CHAT_IMPLEMENTATION.md`, `docs/SUPERMEMORY_QUICK_REF.md`.
-
-### Google Gemini (free tier)
-
-What you’ll get:
-- A free API key from Google AI Studio.
-
-Steps:
-1) Visit https://makersuite.google.com/app/apikey and create an API key.
-2) Add to your `.env`:
-	- GEMINI_API_KEY=AIza... (your key)
-3) Ensure packages are installed (requirements.txt includes openai which powers Gemini via Memory Router).
-
-How it’s used here:
-- The `lms/supermemory_client.py` uses Supermemory’s Memory Router with Gemini to generate responses while injecting relevant memories.
-- Env var is read in `nmtsa_lms/settings.py` and in the Supermemory client.
-
-Troubleshooting:
-- If chat returns a configuration error, verify SUPERMEMORY_API_KEY and GEMINI_API_KEY are present and correct.
-- Check server logs for “Supermemory not configured” or OpenAI client initialization errors.
-
-
-## Deployment (Production)
-
-Recommended stack: Nginx → Gunicorn/Uvicorn → Django (ASGI) + Postgres + object storage (for media) + CDN (optional)
-
-1) Environment
-- Set `DEBUG=false`, strong `SECRET_KEY`, and `ALLOWED_HOSTS` to your domain(s)
-- Configure `DATABASE_URL` to PostgreSQL
-- Configure Auth0/PayPal/Supermemory for production (new credentials)
-
-2) Build assets
 ```bash
 cd nmtsa_lms
 npm run build
-```
-
-3) Collect static files
-```bash
-cd nmtsa_lms
 python manage.py collectstatic --noinput
-```
-
-4) Run migrations
-```bash
-cd nmtsa_lms
 python manage.py migrate
-```
-
-5) Start application server
-- Example (ASGI with Gunicorn + Uvicorn worker):
-```bash
 gunicorn nmtsa_lms.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-6) Configure Nginx
-- Proxy `location /` to `127.0.0.1:8000`
-- Serve static (`/static/`) and media (`/media/`) from disk or object storage/CDN
-- Enable HTTPS (Let’s Encrypt recommended) and HSTS
-
-7) Media storage (recommended)
-- Use S3-compatible storage for `media/` and a CDN for performance
-
-8) Background tasks (optional)
-- Add Redis + Celery for long-running tasks if needed
-
-9) Monitoring
-- Logs, metrics, and uptime checks; consider error reporting tools
-
-
-## Security Hardening Checklist
-
-- DEBUG=false in production
-- Strong `SECRET_KEY`; rotate credentials regularly
-- `ALLOWED_HOSTS` restricted to known domains
-- CSRF and session cookies set `Secure`, `HttpOnly`, `SameSite`
-- CORS locked to allowed origins only
-- Security headers: CSP, X-Frame-Options, X-Content-Type-Options, HSTS via proxy
-- Validate/sanitize uploads (MIME types, size limits)
-- Minimal PII; no PHI; adhere to OWASP Top 10 mitigations
-- Admin actions and payment events audited
-
-
-## Troubleshooting
-
-- OAuth redirect mismatch
-	- Ensure Auth0 callback URL matches your `http(s)://<host>/callback`
-- Static/Tailwind not updating
-	- Verify `npm run dev` is running or re-run `npm run build`
-- Database errors after pull
-	- Run `python manage.py migrate` and optionally `python manage.py makemigrations`
-- Admin login not working
-	- Use `/auth/admin-login/` and ensure your user has `role='admin'` and `onboarding_complete=True`
-- Media not loading in prod
-	- Check storage configuration and Nginx location blocks
-
-
-## Useful Commands (reference)
-
-```bash
-# Activate venv (Windows bash)
-source .venv/Scripts/activate
-
-# Migrations
-cd nmtsa_lms
-python manage.py makemigrations
-python manage.py migrate
-
-# Run dev server
-python manage.py runserver
-
-# Tailwind
-npm run dev      # watch
-npm run build    # production build
-
-# Seed demo
-python manage.py seed_demo_courses
-
-# Tests
-python manage.py test
-```
-
-
-## Documentation
-
-- SRS: `docs/SRS_NMTSA_LMS_FULL.md`
-- Auth: `docs/AUTH_SYSTEM_SUMMARY.md`, `docs/AUTHENTICATION_COMPLETE.md`
-- Payments: `docs/PAYPAL_INTEGRATION_SUMMARY.md`, `docs/PAYPAL_QUICK_TEST.md`
-- AI Chat/Search: `docs/CHAT_IMPLEMENTATION.md`, `docs/SUPERMEMORY_SETUP_GUIDE.md`
-- Localization: `docs/LOCALIZATION_GUIDE_EN_ES.md`
-- SEO/Sitemaps/Schema: `docs/SEO_COMPLETE_CHECKLIST.md`, `docs/SCHEMA_IMPLEMENTATION_GUIDE.md`
-
+Set `DEBUG=false`, a strong `SECRET_KEY`, `DATABASE_URL` pointing to PostgreSQL, and production Auth0/PayPal credentials.
 
 ---
 
-Built for NMTSA to reduce administrative burden, create new revenue streams, and provide better support for families and healthcare professionals through evidence-based educational content.
+## Usage
 
-## Hackathon & Team Info
+### AI Chat API
 
-Please replace the placeholder values below with your real links and names before submission.
+```bash
+# Start a chat
+POST /lms/api/chat/rooms/<id>/send/
+Content-Type: application/json
 
-- Team name: NMTSA-LMS Team
-- Team members: Alice Example, Bob Example, Carol Example (replace with real names)
-- Slack channel: #nmtsa-lms (replace with your workspace channel or invite link)
+{ "content": "What courses do you have on rhythm-based therapy?" }
+```
 
-Problem statement
-- Provide an accessible, trackable online learning platform for neurologic music therapy education that supports dual authentication, teacher verification, course review workflows, student progress tracking, and an AI assistant for search and chat.
+### Semantic Course Search
 
-Live demo / Judges
-- Working project (live/demo): <REPLACE_WITH_LIVE_URL>
-- DevPost: <REPLACE_WITH_DEVPOST_URL>
-- Final demo video: <REPLACE_WITH_FINAL_VIDEO_URL>
+```bash
+POST /lms/api/courses/search/
+Content-Type: application/json
 
-Designs & repo links
-- Figma (designs): <REPLACE_WITH_FIGMA_LINK>
-- GitHub (this repo): <REPLACE_WITH_GITHUB_REPO_URL>
+{ "query": "neurologic music therapy for stroke rehabilitation" }
+```
 
-Notes
-- The canonical "Tech Stack" and "Quick Start (Development)" / run instructions are provided earlier in this README — please use those sections as the authoritative source to avoid duplication.
-- Replace all <REPLACE_...> placeholders with final values before submitting to judges. If you send me the final values I can fill them in for you.
+Returns courses ranked by weighted semantic score across course, module, and lesson indexes.
+
+### Sync Course Content to AI Memory
+
+```bash
+cd nmtsa_lms
+python manage.py seed_website_memory    # seeds platform info
+python manage.py sync_courses_to_memory # indexes all published courses
+```
+
+---
+
+## Key Decisions
+
+| Decision | Rationale | Tradeoff |
+|----------|-----------|----------|
+| Separate admin auth from OAuth | Admins should never share OAuth token scope with students/teachers; prevents privilege escalation via identity provider | Admin UX differs from regular login flow |
+| Auto-unpublish on course edit | Prevents unreviewed content from going live after initial approval | Teacher must re-submit every edit; adds friction for minor fixes |
+| Multi-tier semantic search with weighted aggregation | A lesson keyword match should surface the parent course; raw lesson scores alone would bury relevant courses | Adds one aggregation step per search; slightly more complex than flat search |
+| Supermemory Memory Router over direct LLM call | Injects relevant course memories automatically without custom retrieval code | External dependency; falls back gracefully if unconfigured |
+| Slug-based Supermemory custom IDs | Enables idempotent upserts so `sync_courses_to_memory` can run repeatedly without duplicating index entries | Slugs must be stable; regenerating them breaks the index |
+| EC2 security groups scoped to ALB only | App tier is unreachable from the public internet; all traffic funneled through ALB with TLS termination | Requires ALB to be correctly configured as the sole ingress |
+
+---
+
+## Innovation / Notable Work
+
+- **Memory Router architecture** — rather than building a bespoke RAG pipeline, the Supermemory Memory Router intercepts Gemini API calls and transparently injects the most relevant course memories from the vector store. The AI assistant is domain-restricted by a system prompt that also normalizes dynamic URLs via a `{COURSE:title}` placeholder format the backend resolves to real slugs.
+
+- **Multi-tier search aggregation** — three parallel Supermemory searches (courses, modules, lessons) feed into a custom aggregator that maps module and lesson hits back to their parent course with priority weighting. This surfaces relevant content even when the student's query matches a specific lesson title rather than the course name.
+
+- **Auto-unpublish governance model** — the editorial pipeline (create → submit → approve → publish → edit → auto-unpublish → re-approve) is enforced at the model save level, not at the view layer, making it robust to API calls and management command usage.
+
+- **Accessibility as a first-class feature** — theme switching, Reduce Motion mode, and zero auto-play are not afterthoughts; they are part of the student profile model (`accessibility_needs` field) and propagate through the template system, targeting WCAG 2.1 AA+/AAA for an autism-friendly experience.
+
+---
+
+## About
+
+Built over 36 hours at **Opportunity Hack 2025 (ASU Fall, Tempe AZ — Oct 11–12)** for a real client: Neurologic Music Therapy Services of Arizona. NMTSA's content was previously scattered across Google Drive with no enrollment tracking, no payment infrastructure, and no accessibility accommodations. This platform addresses all three while adding an AI assistant that understands the course catalog.
+
+**Awards:** Winner — Completion Support Prize (Education Platform, 2nd Place) · Winner — Best Polish
+
+**Team:** Coderz — Aakash Khepar & Aditya Jindal
+
+**Links:** [DevPost](https://devpost.com/software/nmtsa-learn) · [Demo Video](https://www.youtube.com/watch?v=1EP4EG3jDYA)
